@@ -34,12 +34,19 @@ export default function Settings({ onClose, onUsersChange, onLocationsChange }) 
     onUsersChange(updated);
   };
 
-  const handleRenameUser = async (index, newName) => {
-    const oldName = users[index];
-    await renameUser(oldName, newName);
+  // onChange: update local state only (no DB call — instant typing)
+  const handleRenameUserLocal = (index, newName) => {
     const updated = [...users];
     updated[index] = newName;
     setUsers(updated);
+  };
+
+  // onBlur: save to Supabase when user finishes typing
+  const handleRenameUserSave = async (index, newName, originalName) => {
+    if (newName === originalName) return;
+    await renameUser(originalName, newName);
+    const updated = [...users];
+    updated[index] = newName;
     onUsersChange(updated);
   };
 
@@ -65,7 +72,14 @@ export default function Settings({ onClose, onUsersChange, onLocationsChange }) 
     onLocationsChange(updated);
   };
 
-  const handleUpdateLocation = async (id, field, value) => {
+  // onChange: update local state only (instant typing, no DB call)
+  const handleUpdateLocationLocal = (id, field, value) => {
+    const updated = locations.map((l) => (l.id === id ? { ...l, [field]: value } : l));
+    setLocations(updated);
+  };
+
+  // onBlur / onChange for colors: save to Supabase
+  const handleUpdateLocationSave = async (id, field, value) => {
     const updates = { [field]: value };
     await updateLocation(id, updates);
     const updated = locations.map((l) => (l.id === id ? { ...l, ...updates } : l));
@@ -105,7 +119,8 @@ export default function Settings({ onClose, onUsersChange, onLocationsChange }) 
                     type="text"
                     className="settings-input"
                     value={user}
-                    onChange={(e) => handleRenameUser(index, e.target.value)}
+                    onChange={(e) => handleRenameUserLocal(index, e.target.value)}
+                    onBlur={(e) => handleRenameUserSave(index, e.target.value, users[index])}
                   />
                   <button className="delete-btn" onClick={() => handleDeleteUser(user)}>Delete</button>
                 </div>
@@ -123,28 +138,30 @@ export default function Settings({ onClose, onUsersChange, onLocationsChange }) 
                     className="settings-input small"
                     title="Icon"
                     value={loc.icon}
-                    onChange={(e) => handleUpdateLocation(loc.id, 'icon', e.target.value)}
+                    onChange={(e) => handleUpdateLocationLocal(loc.id, 'icon', e.target.value)}
+                    onBlur={(e) => handleUpdateLocationSave(loc.id, 'icon', e.target.value)}
                   />
                   <input
                     type="text"
                     className="settings-input"
                     title="Label"
                     value={loc.label}
-                    onChange={(e) => handleUpdateLocation(loc.id, 'label', e.target.value)}
+                    onChange={(e) => handleUpdateLocationLocal(loc.id, 'label', e.target.value)}
+                    onBlur={(e) => handleUpdateLocationSave(loc.id, 'label', e.target.value)}
                   />
                   <input
                     type="color"
                     className="settings-input color-picker"
                     title="Text Color"
                     value={loc.color}
-                    onChange={(e) => handleUpdateLocation(loc.id, 'color', e.target.value)}
+                    onChange={(e) => handleUpdateLocationSave(loc.id, 'color', e.target.value)}
                   />
                   <input
                     type="color"
                     className="settings-input color-picker"
                     title="Background Color"
                     value={loc.bg}
-                    onChange={(e) => handleUpdateLocation(loc.id, 'bg', e.target.value)}
+                    onChange={(e) => handleUpdateLocationSave(loc.id, 'bg', e.target.value)}
                   />
                   <button className="delete-btn" onClick={() => handleDeleteLocation(loc.id)}>Delete</button>
                 </div>
