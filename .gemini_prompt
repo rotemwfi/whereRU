@@ -1,0 +1,50 @@
+I'm migrating a React app from localStorage to Supabase. Rewrite these 3 files. Keep ALL existing JSX/CSS structure unchanged — only swap the data layer.
+
+## Supabase client (already exists at src/lib/supabase.js):
+import { createClient } from '@supabase/supabase-js';
+export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+## Supabase tables:
+- public.users: id serial PK, name text unique, emoji text, sort_order int
+- public.locations: id text PK, label text, icon text, color text, bg text, sort_order int
+- public.checkins: id serial PK, user_name text, day text, slot text, location_id text FK->locations.id, week_start date, UNIQUE(user_name,day,slot,week_start)
+
+## Rules:
+- getCurrentUser() / saveCurrentUser() stay as localStorage (per-device, not shared)
+- Add: export function getWeekStart() { const d=new Date(); d.setDate(d.getDate()-d.getDay()); return d.toISOString().split('T')[0]; }
+- All DB calls are async
+- WeeklyGrid: on mount fetch users+locations+checkins from Supabase. Poll re-fetches only checkins every 3min.
+- checkins rows have user_name (not user), location_id (not locationId) — map accordingly in getCheckin()
+- saveCheckin: upsert into checkins with onConflict:'user_name,day,slot,week_start', set location_id
+- clearCheckin: delete from checkins where user_name,day,slot,week_start match
+- Settings: fetch users+locations on mount from Supabase. addUser inserts into users table (name,emoji='👤',sort_order). deleteUser deletes by name. renameUser updates name. addLocation inserts into locations. deleteLocation deletes by id. updateLocation upserts.
+- No loading spinners, no error UI — keep it simple
+- users array in WeeklyGrid = array of name strings (map from DB rows)
+- locations array = array of {id,label,icon,color,bg} objects (map from DB rows, sorted by sort_order)
+
+## Output: return ONLY 3 code blocks labelled exactly:
+[data.js]
+[WeeklyGrid.jsx]
+[Settings.jsx]
+
+## Current data.js:
+export const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday'];
+export const SLOTS = ['morning','afternoon'];
+export function getCurrentWeekDates() { const today=new Date(); const day=today.getDay(); const sunday=new Date(today); sunday.setDate(today.getDate()-day); return DAYS.map((_,i)=>{ const d=new Date(sunday); d.setDate(sunday.getDate()+i); return d; }); }
+export function formatDate(date) { return `${date.getDate()}/${date.getMonth()+1}`; }
+export function getCurrentUser() { return localStorage.getItem('whereRU_currentUser')||null; }
+export function saveCurrentUser(name) { localStorage.setItem('whereRU_currentUser',name); }
+
+## Current WeeklyGrid.jsx imports:
+import { getUsers, getLocations, DAYS, SLOTS, getCheckins, saveCheckin, clearCheckin, getCurrentWeekDates, formatDate } from '../data';
+-- users state starts as [], locations state starts as []
+-- refresh() calls getCheckins() and sets checkins + lastUpdated
+-- getCheckin(user,day,slot) finds c.user===user (old field name)
+-- handleSelect calls saveCheckin(user,day,slot,locationId) then refresh()
+-- handleClear calls clearCheckin(user,day,slot) then refresh()
+
+## Current Settings.jsx:
+-- imports getUsers, getLocations, saveUsers, saveLocations from data
+-- users state = array of name strings like ['Rotem','Dana',...]
+-- locations state = array of {id,label,icon,color,bg} objects
+-- handleUpdateUsers/handleUpdateLocations call save functions and onUsersChange/onLocationsChange callbacks
